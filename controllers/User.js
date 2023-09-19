@@ -1,7 +1,17 @@
 import generateToken from "../config/generateToken.js";
 import User from "../models/User.js";
 import expressAsyncHandler from "express-async-handler";
-import otpGenerator from "otp-generator";
+
+import * as dotenv from "dotenv";
+import { v2 as cloudinary } from "cloudinary";
+
+dotenv.config();
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export const Signup = expressAsyncHandler(async (req, res) => {
   const { firstName, lastName, userName, email, password } = req.body;
@@ -57,80 +67,59 @@ export const Signin = expressAsyncHandler(async (req, res) => {
     email: existUser.email,
     image: existUser.image,
     isAdmin: existUser.isAdmin,
-    occupation: existUser.occupation,
-    about: existUser.about,
     token: generateToken(existUser),
   });
 });
 
-export const verifyEmail = expressAsyncHandler(async (req, res) => {
-  const { email } = req.params;
-  const existEmail = await User.findOne({ email });
-  if (!existEmail) {
-    return res.status(404).json({ message: "Email not found" });
+export const getUserDetails = expressAsyncHandler(async (req, res) => {
+  const { userName } = req.params;
+
+  const getUser = await User.findOne({ userName }).populate("allBlogs");
+
+  if (!getUser) {
+    res
+      .status(404)
+      .json({ message: `${userName} does not seem to be a valid user` });
   }
 
-  req.app.locals.OTP = otpGenerator.generate(6, {
-    lowerCaseAlphabets: false,
-    upperCaseAlphabets: false,
-    specialChars: false,
-  });
-
-  res.status(200).json({
-    email: existEmail.email,
-    OTP: req.app.locals.OTP,
-  });
+  res.status(200).json(getUser);
 });
 
-export const expireOTP = (req, res) => {
-  req.app.locals.OTP = 1234;
-};
+export const updatePhoto = expressAsyncHandler(async (req, res) => {
+  const userId = req.userId;
+  const { userName, file } = req.body;
 
-export const verifyOTP = expressAsyncHandler(async (req, res) => {
-  const { OTP } = req.params;
-  if (parseInt(req.app.locals.OTP) === 1234) {
-    res.status(400).json({ message: "OTP expired" });
-  }
-  if (parseInt(OTP) === parseInt(req.app.locals.OTP)) {
-    req, (app.locals.OTP = null);
-    req.app.locals.resetSession = true;
+  const userExists = await User.findOne({ userName });
 
-    return res.status(200).json({
-      message: "Verified Successfully",
-      flag: req.app.locals.resetSession,
-    });
+  if (!userExists) {
+    res.status(404).json({ message: "User not found" });
   }
 
-  return res.status(400).json({ message: "Invalid OTP" });
-});
-
-export const expireSession = (req, res) => {
-  req.app.locals.resetSession = false;
-  return res.status(200).json({
-    flag: req.app.locals.resetSession,
-  });
-};
-
-export const resetPassword = expressAsyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!req.app.locals.resetSession) {
-    return res.status(440).json({ message: "Session expired" });
+  if (String(userExists._id) !== String(userId)) {
+    res.status(400).json({ message: "You cannot edit someone else's profile" });
   }
 
-  const userExist = await User.findOne({ email });
-  if (!userExist) {
-    res.status(400).json({ message: "User not found" });
+  if (!file) {
+    const updatedProfile = await User.findOneAndUpdate(
+      { userName },
+      {
+        image:
+          "https://res.cloudinary.com/dbxvk3apv/image/upload/v1690553303/Nairaland/default_avatar_cxfqgl.jpg",
+      },
+      { new: true }
+    );
+
+    res.status(200).json(updatedProfile.image);
   }
+  if (file) {
+    const photoUrl = await cloudinary.uploader.upload(file);
 
-  const hash = await bcrypt.hash(password, 10);
+    const updatedProfile = await User.findOneAndUpdate(
+      { userName },
+      { image: photoUrl.url },
+      { new: true }
+    );
 
-  await User.findOneAndUpdate(
-    { email: userExist.email },
-    { password: hash },
-    { new: true }
-  );
-
-  req.app.locals.resetSession = false;
-  res.status(200).json({ message: "Password reset successful" });
+    res.status(200).json(updatedProfile.image);
+  }
 });

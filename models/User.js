@@ -36,6 +36,14 @@ const userSchema = new mongoose.Schema(
     about: {
       type: String,
     },
+    phone: {
+      type: Number,
+    },
+    address: {
+      country: String,
+      state: String,
+      postalCode: Number,
+    },
     allBlogs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Blog" }],
     isAdmin: {
       type: Boolean,
