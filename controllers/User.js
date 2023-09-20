@@ -123,3 +123,54 @@ export const updatePhoto = expressAsyncHandler(async (req, res) => {
     res.status(200).json(updatedProfile.image);
   }
 });
+
+export const updateProfile = expressAsyncHandler(async (req, res) => {
+  const userId = req.userId;
+  const { firstName, lastName, userName, email, phone, about, occupation } =
+    req.body;
+  const { user } = req.params;
+
+  const userExists = await User.findOne({ userName: user });
+
+  if (!userExists) {
+    res.status(404).json({ message: "User not found" });
+  }
+
+  if (String(userExists._id) !== String(userId)) {
+    res.status(400).json({ message: "You cannot edit someone else's profile" });
+  }
+
+  const existUserName = await User.findOne({ userName });
+  if (existUserName && userName !== userExists.userName) {
+    return res.status(400).json({ message: "Username already in use" });
+  }
+
+  const existEmail = await User.findOne({ email });
+  if (existEmail && email !== userExists.email) {
+    return res.status(400).json({ message: "E-mail already in use" });
+  }
+
+  const updatedProfile = await User.findOneAndUpdate(
+    { userName: user },
+    {
+      firstName,
+      lastName,
+      userName,
+      email,
+      phone: phone || userExists.phone,
+      about: about || userExists.about,
+      occupation: occupation || userExists.occupation,
+    },
+    { new: true }
+  );
+
+  res.status(200).json({
+    firstName: updatedProfile.firstName,
+    lastName: updatedProfile.lastName,
+    userName: updatedProfile.userName,
+    email: updatedProfile.email,
+    phone: updatedProfile.phone,
+    about: updatedProfile.about,
+    occupation: updatedProfile.occupation,
+  });
+});
