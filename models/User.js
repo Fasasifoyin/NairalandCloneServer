@@ -39,10 +39,14 @@ const userSchema = new mongoose.Schema(
     phone: {
       type: Number,
     },
-    address: {
-      country: String,
-      state: String,
-      postalCode: Number,
+    country: {
+      type: String,
+    },
+    state: {
+      type: String,
+    },
+    postalCode: {
+      type: Number,
     },
     allBlogs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Blog" }],
     isAdmin: {
