@@ -1,6 +1,7 @@
 import generateToken from "../config/generateToken.js";
 import User from "../models/User.js";
 import expressAsyncHandler from "express-async-handler";
+import bcrypt from "bcryptjs";
 
 import * as dotenv from "dotenv";
 import { v2 as cloudinary } from "cloudinary";
@@ -137,7 +138,9 @@ export const updateProfile = expressAsyncHandler(async (req, res) => {
   }
 
   if (String(userExists._id) !== String(userId)) {
-    return res.status(400).json({ message: "You cannot edit someone else's profile" });
+    return res
+      .status(400)
+      .json({ message: "You cannot edit someone else's profile" });
   }
 
   const existUserName = await User.findOne({ userName });
@@ -183,11 +186,13 @@ export const updateAddress = expressAsyncHandler(async (req, res) => {
   const userExists = await User.findOne({ userName });
 
   if (!userExists) {
-   return  res.status(404).json({ message: "User not found" });
+    return res.status(404).json({ message: "User not found" });
   }
 
   if (String(userExists._id) !== String(userId)) {
-   return  res.status(400).json({ message: "You cannot edit someone else's profile" });
+    return res
+      .status(400)
+      .json({ message: "You cannot edit someone else's profile" });
   }
 
   const updatedProfile = await User.findOneAndUpdate(
@@ -213,7 +218,7 @@ export const deleteUser = expressAsyncHandler(async (req, res) => {
 
   const userExists = await User.findOne({ userName });
   if (!userExists) {
-   return  res.status(404).json({ message: "User not found" });
+    return res.status(404).json({ message: "User not found" });
   }
 
   if (String(userExists._id) !== String(userId)) {
@@ -227,4 +232,34 @@ export const deleteUser = expressAsyncHandler(async (req, res) => {
     data: deletedUser,
     message: "Your account has been deleted successfully.",
   });
+});
+
+export const updatePassword = expressAsyncHandler(async (req, res) => {
+  const userId = req.userId;
+  const { newPassword, password } = req.body;
+  const { userName } = req.params;
+
+  const userExists = await User.findOne({ userName });
+
+  if (!userExists) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  if (String(userExists._id) !== String(userId)) {
+    return res
+      .status(400)
+      .json({ message: "You cannot edit someone else's profile" });
+  }
+
+  const matchPassword = await userExists.matchPassword(password);
+  if (!matchPassword) {
+    return res.status(400).json({ message: "Password is not correct" });
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  const hash = await bcrypt.hash(newPassword, salt);
+
+  await User.findOneAndUpdate({ userName }, { password: hash }, { new: true });
+
+  res.status(200).json({ message: "Password changed successfully" });
 });

@@ -5,6 +5,7 @@ import {
   deleteUser,
   getUserDetails,
   updateAddress,
+  updatePassword,
   updatePhoto,
   updateProfile,
 } from "../controllers/User.js";
@@ -20,6 +21,7 @@ router.get("/profile/:userName", auth, getUserDetails);
 router.patch("/profile/updatePhoto", auth, updatePhoto);
 router.patch("/profile/updateProfile/:user", auth, updateProfile);
 router.patch("/profile/updateAddress/:userName", auth, updateAddress);
+router.patch("/profile/password/:userName", auth, updatePassword);
 
 router.delete("/profile/delete/:userName", auth, deleteUser);
 
