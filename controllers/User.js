@@ -77,7 +77,7 @@ export const getUserDetails = expressAsyncHandler(async (req, res) => {
   const getUser = await User.findOne({ userName }).populate("allBlogs");
 
   if (!getUser) {
-    res
+    return res
       .status(404)
       .json({ message: `${userName} does not seem to be a valid user` });
   }
@@ -92,11 +92,13 @@ export const updatePhoto = expressAsyncHandler(async (req, res) => {
   const userExists = await User.findOne({ userName });
 
   if (!userExists) {
-    res.status(404).json({ message: "User not found" });
+    return res.status(404).json({ message: "User not found" });
   }
 
   if (String(userExists._id) !== String(userId)) {
-    res.status(400).json({ message: "You cannot edit someone else's profile" });
+    return res
+      .status(400)
+      .json({ message: "You cannot edit someone else's profile" });
   }
 
   if (!file) {
@@ -109,19 +111,17 @@ export const updatePhoto = expressAsyncHandler(async (req, res) => {
       { new: true }
     );
 
-    res.status(200).json(updatedProfile.image);
+    return res.status(200).json(updatedProfile.image);
   }
-  if (file) {
-    const photoUrl = await cloudinary.uploader.upload(file);
+  const photoUrl = await cloudinary.uploader.upload(file);
 
-    const updatedProfile = await User.findOneAndUpdate(
-      { userName },
-      { image: photoUrl.url },
-      { new: true }
-    );
+  const updatedProfile = await User.findOneAndUpdate(
+    { userName },
+    { image: photoUrl.url },
+    { new: true }
+  );
 
-    res.status(200).json(updatedProfile.image);
-  }
+  res.status(200).json(updatedProfile.image);
 });
 
 export const updateProfile = expressAsyncHandler(async (req, res) => {
@@ -133,11 +133,11 @@ export const updateProfile = expressAsyncHandler(async (req, res) => {
   const userExists = await User.findOne({ userName: user });
 
   if (!userExists) {
-    res.status(404).json({ message: "User not found" });
+    return res.status(404).json({ message: "User not found" });
   }
 
   if (String(userExists._id) !== String(userId)) {
-    res.status(400).json({ message: "You cannot edit someone else's profile" });
+    return res.status(400).json({ message: "You cannot edit someone else's profile" });
   }
 
   const existUserName = await User.findOne({ userName });
@@ -183,11 +183,11 @@ export const updateAddress = expressAsyncHandler(async (req, res) => {
   const userExists = await User.findOne({ userName });
 
   if (!userExists) {
-    res.status(404).json({ message: "User not found" });
+   return  res.status(404).json({ message: "User not found" });
   }
 
   if (String(userExists._id) !== String(userId)) {
-    res.status(400).json({ message: "You cannot edit someone else's profile" });
+   return  res.status(400).json({ message: "You cannot edit someone else's profile" });
   }
 
   const updatedProfile = await User.findOneAndUpdate(
@@ -204,5 +204,27 @@ export const updateAddress = expressAsyncHandler(async (req, res) => {
     country: updatedProfile.country,
     state: updatedProfile.state,
     postalCode: updatedProfile.postalCode,
+  });
+});
+
+export const deleteUser = expressAsyncHandler(async (req, res) => {
+  const { userName } = req.params;
+  const userId = req.userId;
+
+  const userExists = await User.findOne({ userName });
+  if (!userExists) {
+   return  res.status(404).json({ message: "User not found" });
+  }
+
+  if (String(userExists._id) !== String(userId)) {
+    return res
+      .status(400)
+      .json({ message: "You cannot delete someone else's profile" });
+  }
+
+  const deletedUser = await User.findByIdAndRemove(userExists._id);
+  res.status(200).json({
+    data: deletedUser,
+    message: "Your account has been deleted successfully.",
   });
 });
