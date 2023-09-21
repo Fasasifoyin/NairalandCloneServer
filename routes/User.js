@@ -10,11 +10,13 @@ import {
   updateProfile,
 } from "../controllers/User.js";
 import { auth } from "../middleware/auth.js";
+import { sendMail } from "../controllers/Mail.js";
 
 const router = Router();
 
 router.post("/signin", Signin);
 router.post("/signup", Signup);
+router.post("/mail", sendMail);
 
 router.get("/profile/:userName", auth, getUserDetails);
 
