@@ -1,16 +1,23 @@
 import nodemailer from "nodemailer";
+import * as dotenv from "dotenv";
+
+dotenv.config();
 
 export const sendMail = async (req, res) => {
   const { email, firstName, lastName, text, subject } = req.body;
   try {
     const transporter = nodemailer.createTransport({
-      host: process.env.HOST,
       service: "gmail",
-      port: Number(process.env.PORT),
-      secure: Boolean(process.env.SECURE),
       auth: {
+        type: "OAuth2",
         user: process.env.USER,
-        pass: process.env.PASS,
+        clientId: process.env.CLIENT_ID,
+        clientSecret: process.env.CLIENT_SECRET,
+        refreshToken: process.env.REFRESH_TOKEN,
+        accessToken: process.env.ACCESS_TOKEN,
+        tls: {
+          rejectUnauthorized: false,
+        },
       },
     });
 
@@ -20,9 +27,7 @@ export const sendMail = async (req, res) => {
       subject: subject,
       text: `Hi ${firstName} ${lastName}. ${text}`,
     });
-    return res
-      .status(201)
-      .json({ message: "Success" });
+    return res.status(201).json({ message: "Success" });
   } catch (error) {
     res.status(500).json(error.message);
   }
