@@ -2,9 +2,12 @@ import generateToken from "../config/generateToken.js";
 import User from "../models/User.js";
 import expressAsyncHandler from "express-async-handler";
 import bcrypt from "bcryptjs";
+import otpGenerator from "otp-generator";
 
 import * as dotenv from "dotenv";
 import { v2 as cloudinary } from "cloudinary";
+import { sendMail } from "./Mail.js";
+import AddMinutesToDate from "../config/time.js";
 
 dotenv.config();
 
@@ -262,4 +265,82 @@ export const updatePassword = expressAsyncHandler(async (req, res) => {
   await User.findOneAndUpdate({ userName }, { password: hash }, { new: true });
 
   res.status(200).json({ message: "Password changed successfully" });
+});
+
+export const verifyEmailandGenerateOTP = expressAsyncHandler(
+  async (req, res) => {
+    const { email } = req.params;
+
+    const userExists = await User.findOne({ email });
+    if (!userExists) {
+      return res.status(404).json({ message: "User does not exist" });
+    }
+
+    req.app.locals.OTP = otpGenerator.generate(6, {
+      lowerCaseAlphabets: false,
+      upperCaseAlphabets: false,
+      specialChars: false,
+    });
+
+    const mailSent = await sendMail({
+      email: userExists.email,
+      text: `Hi ${userExists.lastName} ${userExists.firstName}. You requested for a password change. Your OTP is ${req.app.locals.OTP}`,
+      subject: `OTP VERIFICATION`,
+    });
+
+    if (mailSent.status === 200) {
+      const now = new Date();
+      req.app.locals.resetSession = AddMinutesToDate(now, 10);
+      return res.status(200).json({
+        message: "OTP has been sent to your email address",
+        mail: userExists.email,
+      });
+    } else {
+      return res.status(500).json(mailSent.message);
+    }
+  }
+);
+
+export const verifyOTP = expressAsyncHandler(async (req, res) => {
+  const { code } = req.params;
+  const currentdate = new Date();
+
+  if (currentdate > req.app.locals.resetSession) {
+    req.app.locals.OTP = null;
+    req.app.locals.resetSession = new Date();
+    return res.status(400).json({ message: "OTP expired" });
+  } else {
+    if (parseInt(code) === parseInt(req.app.locals.OTP)) {
+      const now = new Date();
+      req.app.locals.OTP = null;
+      req.app.locals.resetSession = AddMinutesToDate(now, 5);
+      return res.status(200).json({
+        message: "Verified Successfully",
+      });
+    } else {
+      return res.status(400).json({ message: "Invalid OTP code" });
+    }
+  }
+});
+
+export const resetPassword = expressAsyncHandler(async (req, res) => {
+  const { password, email } = req.body;
+  const currentdate = new Date();
+  console.log(req.app.locals.resetSession);
+
+  if (currentdate > req.app.locals.resetSession) {
+    req.app.locals.OTP = null;
+    return res.status(400).json({ message: "Session expired" });
+  }
+
+  const userExists = await User.findOne({ email });
+  if (!userExists) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  const hash = await bcrypt.hash(password, salt);
+
+  await User.findOneAndUpdate({ email }, { password: hash }, { new: true });
+  res.status(201).json({ message: "Password reset successful" });
 });
