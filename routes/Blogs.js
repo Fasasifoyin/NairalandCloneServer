@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { auth } from "../middleware/auth.js";
-import { createBlog, updateBlog } from "../controllers/Blogs/OTHERBlogs.js";
+import { createBlog, deleteBlog, updateBlog } from "../controllers/Blogs/OTHERBlogs.js";
 import {
   getRandomBlogs,
   getNewBlog,
@@ -26,6 +26,8 @@ const router = Router();
 
 router.post("/create", auth, createBlog);
 router.patch("/update", auth, updateBlog);
+router.delete("/delete/:blogId", auth, deleteBlog)
+
 
 router.post("/create/comment", auth, createComment);
 router.get("/get/comment", getComments);
@@ -47,5 +49,6 @@ router.get("/random/blogs/:qty", getRandomBlogs);
 router.get("/footer/:qty", getRandomBlogs);
 
 router.get("/tags/related", getRelatedTags);
+
 
 export default router;

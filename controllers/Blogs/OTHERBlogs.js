@@ -7,6 +7,7 @@ import crypto from "crypto";
 
 import * as dotenv from "dotenv";
 import { v2 as cloudinary } from "cloudinary";
+import Comment from "../../models/Comment.js";
 
 dotenv.config();
 
@@ -72,6 +73,46 @@ export const createBlog = expressAsyncHandler(async (req, res) => {
   res.status(201).json({ message: "Blog created successfully" });
 });
 
+export const deleteBlog = expressAsyncHandler(async (req, res) => {
+  const { blogId } = req.params;
+  const userId = req.userId;
+
+  const blogExist = await Blog.findById(blogId);
+  if (!blogExist) {
+    return res.status(404).json({ message: "Blog not found" });
+  }
+
+  const userExist = await User.findById(userId);
+  if (!userExist) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  const checkOwner = Boolean(String(blogExist.author) === String(userId));
+  if (!checkOwner) {
+    return res
+      .status(400)
+      .json({ message: `You are not allowed to edit this blog` });
+  }
+
+  const tagExist = await Tags.findOne({ tag: blogExist.tags[0] });
+
+  const deletedBlog = await Blog.findByIdAndRemove(blogId);
+  await Comment.deleteMany({ blogId });
+
+  userExist.allBlogs = userExist.allBlogs.filter(
+    (each) => String(each) !== String(blogId)
+  );
+  await userExist.save();
+
+  tagExist.related = tagExist.related.filter(
+    (each) => String(each) !== String(blogId)
+  );
+  tagExist.relatedLength--;
+  await tagExist.save();
+
+  res.status(200).json(deletedBlog);
+});
+
 export const updateBlog = expressAsyncHandler(async (req, res) => {
   const { title, body, tags, filterImage, blogId } = req.body;
   const userId = req.userId;
@@ -85,6 +126,7 @@ export const updateBlog = expressAsyncHandler(async (req, res) => {
   if (!blog) {
     return res.status(404).json({ message: `Blog not found` });
   }
+
   const checkOwner = Boolean(String(blog.author) === String(userId));
   if (!checkOwner) {
     return res
