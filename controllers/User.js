@@ -125,6 +125,7 @@ export const Signin = expressAsyncHandler(async (req, res) => {
     email: existUser.email,
     image: existUser.image,
     isAdmin: existUser.isAdmin,
+    isGoogle: existUser.isGoogle,
     token: generateToken(existUser),
   });
 });
@@ -200,6 +201,20 @@ export const updateProfile = expressAsyncHandler(async (req, res) => {
       .json({ message: "You cannot edit someone else's profile" });
   }
 
+  if (userExists.isGoogle && userName !== userExists.userName) {
+    return res.status(400).json({
+      message:
+        "You signed in with a google account. You are not allowed to change username",
+    });
+  }
+
+  if (userExists.isGoogle && email !== userExists.email) {
+    return res.status(400).json({
+      message:
+        "You signed in with a google account. You are not allowed to change email",
+    });
+  }
+
   const existUserName = await User.findOne({ userName });
   if (existUserName && userName !== userExists.userName) {
     return res.status(400).json({ message: "Username already in use" });
@@ -213,10 +228,10 @@ export const updateProfile = expressAsyncHandler(async (req, res) => {
   const updatedProfile = await User.findOneAndUpdate(
     { userName: user },
     {
-      firstName,
-      lastName,
-      userName,
-      email,
+      firstName: firstName || userExists.firstName,
+      lastName: lastName || userExists.lastName,
+      userName: userName || userExists.userName,
+      email: email || userExists.email,
       phone: phone || userExists.phone,
       about: about || userExists.about,
       occupation: occupation || userExists.occupation,
@@ -302,6 +317,13 @@ export const updatePassword = expressAsyncHandler(async (req, res) => {
     return res.status(404).json({ message: "User not found" });
   }
 
+  if (userExists.isGoogle) {
+    return res.status(400).json({
+      message:
+        "You signed in with your google account. Therefore you cannot change password ",
+    });
+  }
+
   if (String(userExists._id) !== String(userId)) {
     return res
       .status(400)
@@ -328,6 +350,13 @@ export const verifyEmailandGenerateOTP = expressAsyncHandler(
     const userExists = await User.findOne({ email });
     if (!userExists) {
       return res.status(404).json({ message: "User does not exist" });
+    }
+
+    if (userExists.isGoogle) {
+      return res.status(400).json({
+        message:
+          "You signed in with your google account. Therefore you cannot change password ",
+      });
     }
 
     req.app.locals.OTP = otpGenerator.generate(6, {
@@ -390,6 +419,13 @@ export const resetPassword = expressAsyncHandler(async (req, res) => {
   const userExists = await User.findOne({ email });
   if (!userExists) {
     return res.status(404).json({ message: "User not found" });
+  }
+
+  if (userExists.isGoogle) {
+    return res.status(400).json({
+      message:
+        "You signed in with your google account. Therefore you cannot change password ",
+    });
   }
 
   const salt = await bcrypt.genSalt(10);
