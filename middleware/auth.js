@@ -8,8 +8,11 @@ export const auth = async (req, res, next) => {
     let decodedData;
 
     if (token && isCustomAuth) {
-      decodedData = await jwt.verify(token, process.env.JWT_SECRET);
+      decodedData = jwt.verify(token, process.env.JWT_SECRET);
       req.userId = decodedData?.id;
+    } else {
+      decodedData = jwt.decode(token);
+      req.userId = decodedData?.sub;
     }
 
     next();

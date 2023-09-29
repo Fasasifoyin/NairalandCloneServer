@@ -21,6 +21,7 @@ import {
   likeChildComment,
   likeComment,
 } from "../controllers/Comment.js";
+import { search } from "../controllers/Search.js";
 
 const router = Router();
 
@@ -49,6 +50,8 @@ router.get("/random/blogs/:qty", getRandomBlogs);
 router.get("/footer/:qty", getRandomBlogs);
 
 router.get("/tags/related", getRelatedTags);
+
+router.get("/blog/search", search)
 
 
 export default router;

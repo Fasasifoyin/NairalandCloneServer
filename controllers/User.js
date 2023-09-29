@@ -8,6 +8,7 @@ import * as dotenv from "dotenv";
 import { v2 as cloudinary } from "cloudinary";
 import { sendMail } from "./Mail.js";
 import AddMinutesToDate from "../config/time.js";
+import axios from "axios";
 
 dotenv.config();
 
@@ -18,25 +19,53 @@ cloudinary.config({
 });
 
 export const Signup = expressAsyncHandler(async (req, res) => {
-  const { firstName, lastName, userName, email, password } = req.body;
+  const { firstName, lastName, userName, email, password, googleAccessToken } =
+    req.body;
 
-  const existUserName = await User.findOne({ userName });
-  if (existUserName) {
-    return res.status(400).json({ message: "Username already in use" });
+  let userDetails;
+
+  if (googleAccessToken) {
+    const { data } = await axios.get(
+      "https://www.googleapis.com/oauth2/v3/userinfo",
+      {
+        headers: {
+          Authorization: `Bearer ${googleAccessToken}`,
+        },
+      }
+    );
+    userDetails = {
+      firstName: data.given_name,
+      lastName: data.family_name,
+      userName: data.name.split(" ").join(""),
+      email: data.email,
+      password: `${data.email}${data.name.split(" ").join("")}`,
+      image: data.picture,
+      isGoogle: true,
+    };
   }
 
-  const existEmail = await User.findOne({ email });
+  if (!googleAccessToken) {
+    userDetails = {
+      firstName,
+      lastName,
+      userName,
+      email,
+      password,
+      isGoogle: false,
+    };
+  }
+
+  const existEmail = await User.findOne({ email: userDetails.email });
   if (existEmail) {
     return res.status(400).json({ message: "E-mail already in use" });
   }
 
-  let newUser = await User.create({
-    firstName,
-    lastName,
-    userName,
-    email,
-    password,
-  });
+  const existUserName = await User.findOne({ userName: userDetails.userName });
+  if (existUserName) {
+    return res.status(400).json({ message: "Username already in use" });
+  }
+
+  let newUser = await User.create(userDetails);
 
   res.status(201).json({
     _id: newUser._id,
@@ -46,19 +75,44 @@ export const Signup = expressAsyncHandler(async (req, res) => {
     email: newUser.email,
     image: newUser.image,
     isAdmin: newUser.isAdmin,
+    isGoogle: newUser.isGoogle,
     token: generateToken(newUser),
   });
 });
 
 export const Signin = expressAsyncHandler(async (req, res) => {
-  const { userName, password } = req.body;
+  const { userName, password, googleAccessToken } = req.body;
 
-  const existUser = await User.findOne({ userName });
+  let userDetails;
+
+  if (googleAccessToken) {
+    const { data } = await axios.get(
+      "https://www.googleapis.com/oauth2/v3/userinfo",
+      {
+        headers: {
+          Authorization: `Bearer ${googleAccessToken}`,
+        },
+      }
+    );
+    userDetails = {
+      userName: data.name.split(" ").join(""),
+      password: `${data.email}${data.name.split(" ").join("")}`,
+    };
+  }
+
+  if (!googleAccessToken) {
+    userDetails = {
+      userName,
+      password,
+    };
+  }
+
+  const existUser = await User.findOne({ userName: userDetails.userName });
   if (!existUser) {
     return res.status(404).json({ message: "User not found" });
   }
 
-  const matchPassword = await existUser.matchPassword(password);
+  const matchPassword = await existUser.matchPassword(userDetails.password);
   if (!matchPassword) {
     return res.status(400).json({ message: "Password is not correct" });
   }

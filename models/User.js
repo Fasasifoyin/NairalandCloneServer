@@ -48,6 +48,10 @@ const userSchema = new mongoose.Schema(
     postalCode: {
       type: Number,
     },
+    isGoogle: {
+      type: Boolean,
+      required: true,
+    },
     allBlogs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Blog" }],
     isAdmin: {
       type: Boolean,
