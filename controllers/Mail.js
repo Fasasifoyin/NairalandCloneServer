@@ -29,6 +29,7 @@ export const sendMail = async (body) => {
     });
     return { message: "Success", status: 200 };
   } catch (error) {
+    console.log(error);
     return { message: error.message, status: 500 };
   }
 };
