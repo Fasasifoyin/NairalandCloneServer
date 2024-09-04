@@ -1,3 +1,4 @@
+import createHttpError from "http-errors";
 import jwt from "jsonwebtoken";
 
 export const auth = async (req, res, next) => {
@@ -17,8 +18,7 @@ export const auth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.log(error);
-    res.status(401).json({ message: "Authentication failed" });
+    next(createHttpError(401, "Authentication failed"));
   }
 };
 

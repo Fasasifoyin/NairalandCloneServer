@@ -1,6 +1,30 @@
 import Tags from "../models/Tags.js";
 import Blog from "../models/Blogs.js";
 import expressAsyncHandler from "express-async-handler";
+import createHttpError from "http-errors";
+
+// start
+export const getRelatedTags = async (req, res, next) => {
+  try {
+    const { tags } = req.query;
+
+    const related = await Blog.aggregate([
+      {
+        $match: {
+          tags: { $in: tags.split(",") },
+        },
+      },
+      {
+        $sample: { size: 4 },
+      },
+    ]);
+
+    res.status(200).json(related);
+  } catch (error) {
+    next(error);
+  }
+};
+// end
 
 export const homePageTagsList = expressAsyncHandler(async (req, res) => {
   const { page } = req.params;
@@ -69,19 +93,4 @@ export const getRandomTags = expressAsyncHandler(async (req, res) => {
   };
 
   loop(random);
-});
-
-export const getRelatedTags = expressAsyncHandler(async (req, res) => {
-  const { page, tags } = req.query;
-  const LIMIT = 10;
-
-  const related = await Blog.find({ tags: { $in: tags.split(",") } });
-  if (!related.length) {
-    return res.status(400).json({ message: "No related tag found" });
-  }
-  const total = related.length;
-  const sentRelated = related.slice(LIMIT * page - LIMIT, LIMIT * page);
-  res
-    .status(200)
-    .json({ data: sentRelated, totalPages: Math.ceil(total / LIMIT) });
 });

@@ -1,5 +1,168 @@
+import createHttpError from "http-errors";
 import Blog from "../../models/Blogs.js";
 import expressAsyncHandler from "express-async-handler";
+import { randomBlogsToken, verifyBlogsToken } from "../../config/token.js";
+import mongoose from "mongoose";
+
+//start
+export const getLatestNews = async (req, res, next) => {
+  try {
+    const { page } = req.params;
+    if (!page) {
+      throw createHttpError(400, "No page number specified");
+    }
+
+    const resultsPerPage = 20;
+    const skip = (page - 1) * resultsPerPage;
+    const totalResults = await Blog.countDocuments({});
+
+    const results = await Blog.find()
+      .sort({ createdAt: -1 })
+      .limit(resultsPerPage)
+      .skip(skip);
+
+    return res.status(200).json({
+      data: results,
+      page: page,
+      totalPages: Math.ceil(totalResults / resultsPerPage),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getTagBlogs = async (req, res, next) => {
+  try {
+    const tagRequests = req.body;
+    if (!Array.isArray(tagRequests) || tagRequests.length === 0) {
+      throw createHttpError(400, "Invalid input data");
+    }
+
+    // Create an array of promises for each tag request
+    const promises = tagRequests.map(async ({ tag, number }) => {
+      const blogs = await Blog.aggregate([
+        { $match: { tags: tag } },
+        { $sample: { size: number } },
+      ]);
+      return { tag, blogs };
+    });
+
+    // Wait for all promises to resolve
+    const results = await Promise.all(promises);
+
+    // Send the response with the results
+    return res.status(200).json(results);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const randomBlogs = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const token = req.headers["x-blog-pagination-token"];
+
+    const totalBlogs = await Blog.countDocuments();
+    const totalPages = Math.ceil(totalBlogs / 10);
+
+    const PAGE_SIZE =
+      page < totalPages ? 10 : totalBlogs % 10 === 0 ? 10 : totalBlogs % 10;
+
+    if (page > totalPages) {
+      return res.status(200).json({
+        data: [],
+        totalPages,
+      });
+    }
+
+    let sessionData = {};
+
+    if (!token) {
+      sessionData.blogPages = {};
+    }
+
+    if (token) {
+      sessionData = verifyBlogsToken(token);
+      if (!sessionData.blogPages) {
+        throw createHttpError(400, "Invalid token");
+      }
+    }
+
+    let usedBlogIds = new Set();
+    for (const key in sessionData.blogPages) {
+      sessionData.blogPages[key].forEach((id) => usedBlogIds.add(id));
+    }
+
+    const mongooseObjectIds = Array.from(usedBlogIds).map((id) =>
+      typeof id === "string" ? new mongoose.Types.ObjectId(id) : id
+    );
+
+    if (!sessionData.blogPages[page]) {
+      const aggregation = [
+        { $match: { _id: { $nin: mongooseObjectIds } } },
+        { $sample: { size: PAGE_SIZE } },
+      ];
+
+      const randomBlogs = await Blog.aggregate(aggregation);
+
+      sessionData.blogPages[page] = randomBlogs.map((blog) =>
+        blog._id.toString()
+      );
+      const newToken = randomBlogsToken(sessionData);
+
+      return res
+        .setHeader("x-blog-pagination-token", newToken)
+        .status(200)
+        .json({
+          data: randomBlogs,
+          totalPages,
+        });
+    }
+
+    const blogIds = sessionData.blogPages[page].map(
+      (id) => new mongoose.Types.ObjectId(id)
+    );
+    const blogs = await Blog.aggregate([
+      { $match: { _id: { $in: blogIds } } },
+      { $addFields: { sortOrder: { $indexOfArray: [blogIds, "$_id"] } } },
+      { $sort: { sortOrder: 1 } },
+    ]);
+
+    return res.status(200).json({ data: blogs, totalPages });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getSingleBlog = async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const single = await Blog.findOne({ slug }).populate("author");
+
+    if (!single) {
+      throw createHttpError(400, "Blog not found");
+    }
+
+    res.status(200).json(single);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const checkTagsNumber = async (req, res, next) => {
+  try {
+    const result = await Blog.aggregate([
+      { $unwind: "$tags" }, // Deconstructs the tags array field from the input documents to output a document for each element
+      { $group: { _id: "$tags", count: { $sum: 1 } } }, // Groups by each tag and counts the number of occurrences
+      { $sort: { count: -1 } }, // Sorts the result by count in descending order
+    ]);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+//end
 
 export const getRandomBlogs = expressAsyncHandler(async (req, res) => {
   const { qty } = req.params;
@@ -67,14 +230,3 @@ export const getNewBlog = expressAsyncHandler(async (req, res) => {
     totalPages: Math.ceil((total - 3) / LIMIT),
   });
 });
-
-export const getSingleProduct = expressAsyncHandler(async (req, res) => {
-  const { slug } = req.params;
-  const single = await Blog.findOne({ slug }).populate("author");
-  if (!single) {
-    return res.status(404).json({ message: "Blog not found" });
-  }
-  res.status(200).json(single);
-});
-
-

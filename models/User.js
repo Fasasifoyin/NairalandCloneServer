@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    isGoogle: {
+      type: Boolean,
+      required: true,
+    },
     image: {
       type: String,
       default:
@@ -47,10 +51,6 @@ const userSchema = new mongoose.Schema(
     },
     postalCode: {
       type: Number,
-    },
-    isGoogle: {
-      type: Boolean,
-      required: true,
     },
     allBlogs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Blog" }],
     isAdmin: {

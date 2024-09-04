@@ -1,134 +1,172 @@
-import generateToken from "../config/generateToken.js";
 import User from "../models/User.js";
+import createHttpError from "http-errors";
+import axios from "axios";
+import { generateToken } from "../config/token.js";
+
 import expressAsyncHandler from "express-async-handler";
 import bcrypt from "bcryptjs";
 import otpGenerator from "otp-generator";
-
 import * as dotenv from "dotenv";
 import { v2 as cloudinary } from "cloudinary";
 import { sendMail } from "./Mail.js";
 import AddMinutesToDate from "../config/time.js";
-import axios from "axios";
 
 dotenv.config();
-
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export const Signup = expressAsyncHandler(async (req, res) => {
-  const { firstName, lastName, userName, email, password, googleAccessToken } =
-    req.body;
-
-  let userDetails;
-
-  if (googleAccessToken) {
-    const { data } = await axios.get(
-      "https://www.googleapis.com/oauth2/v3/userinfo",
-      {
-        headers: {
-          Authorization: `Bearer ${googleAccessToken}`,
-        },
-      }
-    );
-    userDetails = {
-      firstName: data.given_name,
-      lastName: data.family_name,
-      userName: data.name.split(" ").join(""),
-      email: data.email,
-      password: `${data.email}${data.name.split(" ").join("")}`,
-      image: data.picture,
-      isGoogle: true,
-    };
-  }
-
-  if (!googleAccessToken) {
-    userDetails = {
+//start
+export const Signup = async (req, res, next) => {
+  try {
+    const {
       firstName,
       lastName,
       userName,
       email,
       password,
-      isGoogle: false,
-    };
-  }
+      googleAccessToken,
+    } = req.body;
 
-  const existEmail = await User.findOne({ email: userDetails.email });
-  if (existEmail) {
-    return res.status(400).json({ message: "E-mail already in use" });
-  }
+    if (
+      (!firstName || !lastName || !userName || !email || !password) &&
+      !googleAccessToken
+    ) {
+      throw createHttpError(400, "Parameters missing");
+    }
 
-  const existUserName = await User.findOne({ userName: userDetails.userName });
-  if (existUserName) {
-    return res.status(400).json({ message: "Username already in use" });
-  }
+    let userDetails;
 
-  let newUser = await User.create(userDetails);
-
-  res.status(201).json({
-    _id: newUser._id,
-    firstName: newUser.firstName,
-    lastName: newUser.lastName,
-    userName: newUser.userName,
-    email: newUser.email,
-    image: newUser.image,
-    isAdmin: newUser.isAdmin,
-    isGoogle: newUser.isGoogle,
-    token: generateToken(newUser),
-  });
-});
-
-export const Signin = expressAsyncHandler(async (req, res) => {
-  const { userName, password, googleAccessToken } = req.body;
-
-  let userDetails;
-
-  if (googleAccessToken) {
-    const { data } = await axios.get(
-      "https://www.googleapis.com/oauth2/v3/userinfo",
-      {
-        headers: {
-          Authorization: `Bearer ${googleAccessToken}`,
-        },
+    if (googleAccessToken) {
+      try {
+        const { data } = await axios.get(
+          "https://www.googleapis.com/oauth2/v3/userinfo",
+          {
+            headers: {
+              Authorization: `Bearer ${googleAccessToken}`,
+            },
+          }
+        );
+        userDetails = {
+          firstName: data.given_name,
+          lastName: data.family_name,
+          userName: data.email,
+          email: data.email,
+          password: process.env.PASSWORD,
+          image: data.picture,
+          isGoogle: true,
+        };
+      } catch (error) {
+        console.log(error);
+        throw createHttpError(400, "Invalid Google access token");
       }
-    );
-    userDetails = {
-      userName: data.name.split(" ").join(""),
-      password: `${data.email}${data.name.split(" ").join("")}`,
-    };
-  }
+    }
 
-  if (!googleAccessToken) {
-    userDetails = {
-      userName,
-      password,
-    };
-  }
+    if (!googleAccessToken) {
+      userDetails = {
+        firstName,
+        lastName,
+        userName,
+        email,
+        password,
+        isGoogle: false,
+      };
+    }
 
-  const existUser = await User.findOne({ userName: userDetails.userName });
-  if (!existUser) {
-    return res.status(404).json({ message: "User not found" });
-  }
+    const existEmail = await User.findOne({ email: userDetails.email });
+    if (existEmail) {
+      throw createHttpError(400, "E-mail already in use");
+    }
 
-  const matchPassword = await existUser.matchPassword(userDetails.password);
-  if (!matchPassword) {
-    return res.status(400).json({ message: "Password is not correct" });
-  }
+    const existUserName = await User.findOne({
+      userName: userDetails.userName,
+    });
+    if (existUserName) {
+      throw createHttpError(400, "User name already in use");
+    }
 
-  res.status(200).json({
-    _id: existUser._id,
-    firstName: existUser.firstName,
-    lastName: existUser.lastName,
-    userName: existUser.userName,
-    email: existUser.email,
-    image: existUser.image,
-    isAdmin: existUser.isAdmin,
-    isGoogle: existUser.isGoogle,
-    token: generateToken(existUser),
-  });
-});
+    let newUser = await User.create(userDetails);
+
+    res.status(201).json({
+      _id: newUser._id,
+      firstName: newUser.firstName,
+      lastName: newUser.lastName,
+      userName: newUser.userName,
+      email: newUser.email,
+      image: newUser.image,
+      isAdmin: newUser.isAdmin,
+      isGoogle: newUser.isGoogle,
+      token: generateToken(newUser),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const Signin = async (req, res, next) => {
+  try {
+    const { userName, password, googleAccessToken } = req.body;
+    if ((!userName || !password) && !googleAccessToken) {
+      throw createHttpError(400, "Parameters missing");
+    }
+
+    let userDetails;
+
+    if (googleAccessToken) {
+      try {
+        const { data } = await axios.get(
+          "https://www.googleapis.com/oauth2/v3/userinfo",
+          {
+            headers: {
+              Authorization: `Bearer ${googleAccessToken}`,
+            },
+          }
+        );
+        userDetails = {
+          userName: data.email,
+          password: process.env.PASSWORD,
+        };
+      } catch (error) {
+        console.log(error);
+        throw createHttpError(400, "Invalid Google access token");
+      }
+    }
+
+    if (!googleAccessToken) {
+      userDetails = {
+        userName,
+        password,
+      };
+    }
+
+    const existUser = await User.findOne({ userName: userDetails.userName });
+    if (!existUser) {
+      throw createHttpError(400, "Invalid Credentials");
+    }
+
+    const matchPassword = await existUser.matchPassword(userDetails.password);
+    if (!matchPassword) {
+      throw createHttpError(400, "Invalid Credentials");
+    }
+
+    res.status(200).json({
+      _id: existUser._id,
+      firstName: existUser.firstName,
+      lastName: existUser.lastName,
+      userName: existUser.userName,
+      email: existUser.email,
+      image: existUser.image,
+      isAdmin: existUser.isAdmin,
+      isGoogle: existUser.isGoogle,
+      token: generateToken(existUser),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+//end
 
 export const getUserDetails = expressAsyncHandler(async (req, res) => {
   const { userName } = req.params;

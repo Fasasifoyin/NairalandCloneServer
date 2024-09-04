@@ -5,7 +5,11 @@ import {
   getRandomBlogs,
   getNewBlog,
   getNewPageSlider,
-  getSingleProduct,
+  getSingleBlog,
+  getLatestNews,
+  checkTagsNumber,
+  getTagBlogs,
+  randomBlogs,
 } from "../controllers/Blogs/GETBlogs.js";
 import {
   getRandomTags,
@@ -25,13 +29,24 @@ import { search } from "../controllers/Search.js";
 
 const router = Router();
 
+//start
+router.get("/latest/:page", getLatestNews)
+router.post("/getblogsbytags", getTagBlogs)
+router.get("/randomblogs", randomBlogs)
+
+router.get("/:slug", getSingleBlog);
+router.get("/tags/related", getRelatedTags);
+router.get("/get/comment", getComments);
+router.post("/create/comment", auth, createComment);
+
+router.get("/checkTags", checkTagsNumber)
+//end
+
 router.post("/create", auth, createBlog);
 router.patch("/update", auth, updateBlog);
 router.delete("/delete/:blogId", auth, deleteBlog)
 
 
-router.post("/create/comment", auth, createComment);
-router.get("/get/comment", getComments);
 router.patch("/comment/like/:commentId", auth, likeComment);
 router.patch("/comment/childcomment", auth, createChildComment);
 router.patch("/comment/childcomment/like", auth, likeChildComment);
@@ -43,13 +58,11 @@ router.get("/homepage/:page", homePageTagsList);
 router.get("/newpage/slider/:qty", getNewPageSlider);
 router.get("/new/:page", getNewBlog);
 
-router.get("/:slug", getSingleProduct);
 
 router.get("/random/tags/:qty", getRandomTags);
 router.get("/random/blogs/:qty", getRandomBlogs);
 router.get("/footer/:qty", getRandomBlogs);
 
-router.get("/tags/related", getRelatedTags);
 
 router.get("/blog/search", search)
 

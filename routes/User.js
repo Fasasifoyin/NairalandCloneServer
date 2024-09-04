@@ -19,6 +19,31 @@ const router = Router();
 router.post("/signin", Signin);
 router.post("/signup", Signup);
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 router.get("/profile/:userName", auth, getUserDetails);
 router.get("/generateotp/:email", localVariable, verifyEmailandGenerateOTP);
 router.get("/verifyotp/:code", verifyOTP)
