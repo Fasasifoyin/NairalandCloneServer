@@ -12,7 +12,7 @@ export const getLatestNews = async (req, res, next) => {
       throw createHttpError(400, "No page number specified");
     }
 
-    const resultsPerPage = 20;
+    const resultsPerPage = 30;
     const skip = (page - 1) * resultsPerPage;
     const totalResults = await Blog.countDocuments({});
 
