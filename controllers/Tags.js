@@ -6,20 +6,40 @@ import createHttpError from "http-errors";
 // start
 export const getRelatedTags = async (req, res, next) => {
   try {
-    const { tags } = req.query;
+    const { tags, page } = req.query;
+    const LIMIT = 30;
+    const SKIP = (page - 1) * LIMIT;
 
-    const related = await Blog.aggregate([
-      {
-        $match: {
-          tags: { $in: tags.split(",") },
+    if (!tags) {
+      throw createHttpError(400, "Parameters missing");
+    }
+
+    const query = {
+      tags: { $in: tags.split(",") },
+    };
+
+    if (page === undefined || page === "" || page === "undefined") {
+      const related = await Blog.aggregate([
+        {
+          $match: query,
         },
-      },
-      {
-        $sample: { size: 4 },
-      },
-    ]);
+        {
+          $sample: { size: 4 },
+        },
+      ]);
 
-    res.status(200).json(related);
+      return res.status(200).json(related);
+    }
+
+    const totalBlog = await Blog.countDocuments(query);
+    const related = await Blog.find(query)
+      .skip(SKIP)
+      .limit(LIMIT)
+      .sort({ createdAt: -1 });
+
+    return res
+      .status(200)
+      .json({ data: related, totalPages: Math.ceil(totalBlog / LIMIT) });
   } catch (error) {
     next(error);
   }
