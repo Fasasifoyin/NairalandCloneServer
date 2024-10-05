@@ -27,7 +27,6 @@ const buildSearchQuery = (search, searchTags, title, body) => {
 export const search = async (req, res, next) => {
   try {
     const { title, body, tags, search, page } = req.query;
-    console.log(title,body)
 
     if (!search || search === "undefined") {
       throw createHttpError(400, "No search");
@@ -51,9 +50,18 @@ export const search = async (req, res, next) => {
     }
 
     const searchQuery = buildSearchQuery(search, searchTags, title, body);
-    const searchResults = await Blog.find(searchQuery);
+    const totaLSearch = await Blog.countDocuments(searchQuery);
+    const searchResults = await Blog.find(searchQuery)
+      .sort({
+        createdAt: -1,
+      })
+      .skip(SKIP)
+      .limit(LIMIT);
 
-    res.status(200).json(searchResults);
+    res.status(200).json({
+      data: searchResults,
+      totalPages: Math.ceil(totaLSearch / LIMIT),
+    });
   } catch (error) {
     next(error);
   }
