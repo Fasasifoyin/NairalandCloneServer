@@ -3,7 +3,8 @@ import {
   Signin,
   Signup,
   deleteUser,
-  getUserDetails,
+  getProfile,
+  getUserBlogs,
   resetPassword,
   updateAddress,
   updatePassword,
@@ -16,43 +17,22 @@ import { auth, localVariable } from "../middleware/auth.js";
 
 const router = Router();
 
+//start
 router.post("/signin", Signin);
 router.post("/signup", Signup);
 
+router.get("/profile/:userName/:page", auth, getProfile);
+router.get("/profile/search", getUserBlogs)
+//end
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-router.get("/profile/:userName", auth, getUserDetails);
 router.get("/generateotp/:email", localVariable, verifyEmailandGenerateOTP);
-router.get("/verifyotp/:code", verifyOTP)
+router.get("/verifyotp/:code", verifyOTP);
 
 router.patch("/profile/updatePhoto", auth, updatePhoto);
 router.patch("/profile/updateProfile/:user", auth, updateProfile);
 router.patch("/profile/updateAddress/:userName", auth, updateAddress);
 router.patch("/profile/password/:userName", auth, updatePassword);
-router.patch("/resetpassword", resetPassword)
+router.patch("/resetpassword", resetPassword);
 
 router.delete("/profile/delete/:userName", auth, deleteUser);
 

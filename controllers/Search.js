@@ -38,7 +38,7 @@ export const search = async (req, res, next) => {
 
     const LIMIT = 10;
     const PAGE = Number(page) || 1;
-    const SKIP = (page - 1) * LIMIT;
+    const SKIP = (PAGE - 1) * LIMIT;
 
     let searchTags = [];
 

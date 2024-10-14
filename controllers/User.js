@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import Blog from "../models/Blogs.js";
 import createHttpError from "http-errors";
 import axios from "axios";
 import { generateToken } from "../config/token.js";
@@ -166,11 +167,85 @@ export const Signin = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getProfile = async (req, res, next) => {
+  try {
+    const { userName, page } = req.params;
+
+    const LIMIT = 2;
+    const PAGE = Number(page) || 1;
+    const SKIP = (PAGE - 1) * LIMIT;
+
+    const getProfile = await User.findOne({ userName }).populate({
+      path: "allBlogs",
+      options: {
+        sort: { createdAt: -1 },
+        skip: SKIP,
+        limit: LIMIT,
+      },
+    });
+
+    if (!getProfile) {
+      throw createHttpError(
+        400,
+        `${userName} does not seem to be a valid user`
+      );
+    }
+
+    const result = await User.aggregate([
+      { $match: { userName } },
+      { $project: { totalBlogs: { $size: "$allBlogs" } } },
+    ]);
+
+    const totalBlogs = result[0]?.totalBlogs || 0;
+    const totalPages = Math.ceil(totalBlogs / LIMIT);
+
+    return res.status(200).json({ data: getProfile, totalPages });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getUserBlogs = async (req, res, next) => {
+  try {
+    const { userName, search, page } = req.query;
+
+    const LIMIT = 2;
+    const PAGE = Number(page) || 1;
+    const SKIP = (PAGE - 1) * LIMIT;
+
+    const user = await User.findOne({ userName });
+    if (!user) {
+      throw createHttpError(
+        400,
+        `${userName} does not seem to be a valid user`
+      );
+    }
+
+    const totalBlogs = await Blog.countDocuments({
+      _id: { $in: user.allBlogs },
+      title: { $regex: search, $options: "i" },
+    });
+
+    const blogs = await Blog.find({
+      _id: { $in: user.allBlogs },
+      title: { $regex: search, $options: "i" },
+    })
+      .sort({ createdAt: -1 })
+      .skip(SKIP)
+      .limit(LIMIT);
+
+    return res.json({
+      data: blogs,
+      totalPages: Math.ceil(totalBlogs / LIMIT),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 //end
 
 export const getUserDetails = expressAsyncHandler(async (req, res) => {
-  const { userName } = req.params;
-
   const getUser = await User.findOne({ userName }).populate("allBlogs");
 
   if (!getUser) {
