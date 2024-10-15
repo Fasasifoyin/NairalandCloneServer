@@ -53,7 +53,7 @@ export const Signup = async (req, res, next) => {
         userDetails = {
           firstName: data.given_name,
           lastName: data.family_name,
-          userName: data.email,
+          userName: data.email.split("@")[0].toLowerCase(),
           email: data.email,
           password: process.env.PASSWORD,
           image: data.picture,
@@ -81,11 +81,25 @@ export const Signup = async (req, res, next) => {
       throw createHttpError(400, "E-mail already in use");
     }
 
-    const existUserName = await User.findOne({
+    let existUserName = await User.findOne({
       userName: userDetails.userName,
     });
     if (existUserName) {
-      throw createHttpError(400, "User name already in use");
+      // Google signup: Append suffix if username exists
+      if (userDetails.isGoogle) {
+        let suffix = 1;
+        const baseUsername = userDetails.userName;
+        while (existUserName) {
+          userDetails.userName = baseUsername + suffix;
+          existUserName = await User.findOne({
+            userName: userDetails.userName,
+          });
+          suffix++;
+        }
+      } else {
+        // Manual signup: Throw error for duplicate username
+        throw createHttpError(400, "User name already in use");
+      }
     }
 
     let newUser = await User.create(userDetails);
@@ -113,7 +127,7 @@ export const Signin = async (req, res, next) => {
       throw createHttpError(400, "Parameters missing");
     }
 
-    let userDetails;
+    let user;
 
     if (googleAccessToken) {
       try {
@@ -125,43 +139,36 @@ export const Signin = async (req, res, next) => {
             },
           }
         );
-        userDetails = {
-          userName: data.email,
-          password: process.env.PASSWORD,
-        };
+        user = await User.findOne({ email: data.email });
       } catch (error) {
         console.log(error);
         throw createHttpError(400, "Invalid Google access token");
       }
+    } else {
+      user = await User.findOne({ userName });
+    }
+
+    if (!user) {
+      throw createHttpError(400, "Invalid Credentials");
     }
 
     if (!googleAccessToken) {
-      userDetails = {
-        userName,
-        password,
-      };
-    }
-
-    const existUser = await User.findOne({ userName: userDetails.userName });
-    if (!existUser) {
-      throw createHttpError(400, "Invalid Credentials");
-    }
-
-    const matchPassword = await existUser.matchPassword(userDetails.password);
-    if (!matchPassword) {
-      throw createHttpError(400, "Invalid Credentials");
+      const matchPassword = await user.matchPassword(password);
+      if (!matchPassword) {
+        throw createHttpError(400, "Invalid Credentials");
+      }
     }
 
     res.status(200).json({
-      _id: existUser._id,
-      firstName: existUser.firstName,
-      lastName: existUser.lastName,
-      userName: existUser.userName,
-      email: existUser.email,
-      image: existUser.image,
-      isAdmin: existUser.isAdmin,
-      isGoogle: existUser.isGoogle,
-      token: generateToken(existUser),
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      userName: user.userName,
+      email: user.email,
+      image: user.image,
+      isAdmin: user.isAdmin,
+      isGoogle: user.isGoogle,
+      token: generateToken(user),
     });
   } catch (error) {
     next(error);
@@ -243,19 +250,94 @@ export const getUserBlogs = async (req, res, next) => {
     next(error);
   }
 };
-//end
 
-export const getUserDetails = expressAsyncHandler(async (req, res) => {
-  const getUser = await User.findOne({ userName }).populate("allBlogs");
+export const updateProfile = async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const { user } = req.params;
+    const {
+      firstName,
+      lastName,
+      userName,
+      email,
+      occupation,
+      about,
+      phone,
+      country,
+      state,
+      postalCode,
+    } = req.body;
+    if (!firstName || !lastName || !userName || !email) {
+      throw createHttpError(
+        400,
+        "There has to be first name, last name, username and email address"
+      );
+    }
 
-  if (!getUser) {
-    return res
-      .status(404)
-      .json({ message: `${userName} does not seem to be a valid user` });
+    const userExists = await User.findOne({ userName: user });
+    if (!userExists) {
+      throw createHttpError(400, "User not found");
+    }
+    if (String(userExists._id) !== String(userId)) {
+      throw createHttpError(400, "You cannot edit someone else's profile");
+    }
+
+    if (
+      userExists.isGoogle &&
+      (userExists.firstName !== firstName ||
+        userExists.lastName !== lastName ||
+        userExists.email !== email ||
+        userExists.userName !== userName)
+    ) {
+      throw createHttpError(
+        400,
+        "You signed in with google account, you are not allowed to change first name, lat name, username or email address"
+      );
+    }
+
+    const existUserName = await User.findOne({ userName });
+    if (existUserName && userName !== userExists.userName) {
+      throw createHttpError(400, "Username already in use");
+    }
+    const existEmail = await User.findOne({ email });
+    if (existEmail && email !== userExists.email) {
+      throw createHttpError(400, "Email already in use");
+    }
+
+    const updatedProfile = await User.findOneAndUpdate(
+      { userName: user },
+      {
+        firstName,
+        lastName,
+        userName,
+        email,
+        phone,
+        about,
+        occupation,
+        country,
+        state,
+        postalCode,
+      },
+      { new: true }
+    );
+
+    res.status(200).json({
+      firstName: updatedProfile.firstName,
+      lastName: updatedProfile.lastName,
+      userName: updatedProfile.userName,
+      email: updatedProfile.email,
+      phone: updatedProfile.phone,
+      about: updatedProfile.about,
+      occupation: updatedProfile.occupation,
+      country: updatedProfile.country,
+      state: updatedProfile.state,
+      postalCode: updatedProfile.postalCode,
+    });
+  } catch (error) {
+    next(error);
   }
-
-  res.status(200).json(getUser);
-});
+};
+//end
 
 export const updatePhoto = expressAsyncHandler(async (req, res) => {
   const userId = req.userId;
@@ -296,7 +378,7 @@ export const updatePhoto = expressAsyncHandler(async (req, res) => {
   res.status(200).json(updatedProfile.image);
 });
 
-export const updateProfile = expressAsyncHandler(async (req, res) => {
+export const updateProfiled = expressAsyncHandler(async (req, res) => {
   const userId = req.userId;
   const { firstName, lastName, userName, email, phone, about, occupation } =
     req.body;

@@ -22,14 +22,16 @@ router.post("/signin", Signin);
 router.post("/signup", Signup);
 
 router.get("/profile/:userName/:page", auth, getProfile);
-router.get("/profile/search", getUserBlogs)
+router.get("/profile/search", getUserBlogs);
+
+router.patch("/profile/updateProfile/:user", auth, updateProfile);
+
 //end
 
 router.get("/generateotp/:email", localVariable, verifyEmailandGenerateOTP);
 router.get("/verifyotp/:code", verifyOTP);
 
 router.patch("/profile/updatePhoto", auth, updatePhoto);
-router.patch("/profile/updateProfile/:user", auth, updateProfile);
 router.patch("/profile/updateAddress/:userName", auth, updateAddress);
 router.patch("/profile/password/:userName", auth, updatePassword);
 router.patch("/resetpassword", resetPassword);
