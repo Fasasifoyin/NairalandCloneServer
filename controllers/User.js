@@ -337,113 +337,46 @@ export const updateProfile = async (req, res, next) => {
     next(error);
   }
 };
-//end
 
-export const updatePhoto = expressAsyncHandler(async (req, res) => {
-  const userId = req.userId;
-  const { userName, file } = req.body;
+export const updatePhoto = async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const { userName, file } = req.body;
 
-  const userExists = await User.findOne({ userName });
+    const userExists = await User.findOne({ userName });
+    if (!userExists) {
+      throw createHttpError(400, "User not found");
+    }
+    if (String(userExists._id) !== String(userId)) {
+      throw createHttpError(400, "You cannot edit someone else's profile");
+    }
 
-  if (!userExists) {
-    return res.status(404).json({ message: "User not found" });
-  }
+    if (!file) {
+      const updatedProfile = await User.findOneAndUpdate(
+        { userName },
+        {
+          image:
+            "https://res.cloudinary.com/dbxvk3apv/image/upload/v1690553303/Nairaland/default_avatar_cxfqgl.jpg",
+        },
+        { new: true }
+      );
 
-  if (String(userExists._id) !== String(userId)) {
-    return res
-      .status(400)
-      .json({ message: "You cannot edit someone else's profile" });
-  }
+      return res.status(200).json(updatedProfile.image);
+    }
+    const photoUrl = await cloudinary.uploader.upload(file);
 
-  if (!file) {
     const updatedProfile = await User.findOneAndUpdate(
       { userName },
-      {
-        image:
-          "https://res.cloudinary.com/dbxvk3apv/image/upload/v1690553303/Nairaland/default_avatar_cxfqgl.jpg",
-      },
+      { image: photoUrl.url },
       { new: true }
     );
 
-    return res.status(200).json(updatedProfile.image);
+    res.status(200).json(updatedProfile.image);
+  } catch (error) {
+    next(error);
   }
-  const photoUrl = await cloudinary.uploader.upload(file);
-
-  const updatedProfile = await User.findOneAndUpdate(
-    { userName },
-    { image: photoUrl.url },
-    { new: true }
-  );
-
-  res.status(200).json(updatedProfile.image);
-});
-
-export const updateProfiled = expressAsyncHandler(async (req, res) => {
-  const userId = req.userId;
-  const { firstName, lastName, userName, email, phone, about, occupation } =
-    req.body;
-  const { user } = req.params;
-
-  const userExists = await User.findOne({ userName: user });
-
-  if (!userExists) {
-    return res.status(404).json({ message: "User not found" });
-  }
-
-  if (String(userExists._id) !== String(userId)) {
-    return res
-      .status(400)
-      .json({ message: "You cannot edit someone else's profile" });
-  }
-
-  if (userExists.isGoogle && userName !== userExists.userName) {
-    return res.status(400).json({
-      message:
-        "You signed in with a google account. You are not allowed to change username",
-    });
-  }
-
-  if (userExists.isGoogle && email !== userExists.email) {
-    return res.status(400).json({
-      message:
-        "You signed in with a google account. You are not allowed to change email",
-    });
-  }
-
-  const existUserName = await User.findOne({ userName });
-  if (existUserName && userName !== userExists.userName) {
-    return res.status(400).json({ message: "Username already in use" });
-  }
-
-  const existEmail = await User.findOne({ email });
-  if (existEmail && email !== userExists.email) {
-    return res.status(400).json({ message: "E-mail already in use" });
-  }
-
-  const updatedProfile = await User.findOneAndUpdate(
-    { userName: user },
-    {
-      firstName: firstName || userExists.firstName,
-      lastName: lastName || userExists.lastName,
-      userName: userName || userExists.userName,
-      email: email || userExists.email,
-      phone: phone || userExists.phone,
-      about: about || userExists.about,
-      occupation: occupation || userExists.occupation,
-    },
-    { new: true }
-  );
-
-  res.status(200).json({
-    firstName: updatedProfile.firstName,
-    lastName: updatedProfile.lastName,
-    userName: updatedProfile.userName,
-    email: updatedProfile.email,
-    phone: updatedProfile.phone,
-    about: updatedProfile.about,
-    occupation: updatedProfile.occupation,
-  });
-});
+};
+//end
 
 export const updateAddress = expressAsyncHandler(async (req, res) => {
   const userId = req.userId;

@@ -25,6 +25,8 @@ router.get("/profile/:userName/:page", auth, getProfile);
 router.get("/profile/search", getUserBlogs);
 
 router.patch("/profile/updateProfile/:user", auth, updateProfile);
+router.patch("/profile/updatePhoto", auth, updatePhoto);
+
 
 //end
 
