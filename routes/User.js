@@ -23,10 +23,9 @@ router.post("/signup", Signup);
 
 router.get("/profile/:userName/:page", auth, getProfile);
 router.get("/profile/search", getUserBlogs);
-
 router.patch("/profile/updateProfile/:user", auth, updateProfile);
 router.patch("/profile/updatePhoto", auth, updatePhoto);
-
+router.patch("/profile/updatePassword", auth, updatePassword);
 
 //end
 
@@ -35,7 +34,6 @@ router.get("/verifyotp/:code", verifyOTP);
 
 router.patch("/profile/updatePhoto", auth, updatePhoto);
 router.patch("/profile/updateAddress/:userName", auth, updateAddress);
-router.patch("/profile/password/:userName", auth, updatePassword);
 router.patch("/resetpassword", resetPassword);
 
 router.delete("/profile/delete/:userName", auth, deleteUser);

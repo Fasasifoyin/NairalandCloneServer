@@ -376,6 +376,44 @@ export const updatePhoto = async (req, res, next) => {
     next(error);
   }
 };
+
+export const updatePassword = async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const { newPassword, oldPassword, userName } = req.body;
+
+    const userExists = await User.findOne({ userName });
+    if (!userExists) {
+      throw createHttpError(400, "User not found");
+    }
+    if (String(userExists._id) !== String(userId)) {
+      throw createHttpError(400, "You cannot edit someone else's profile");
+    }
+    if (userExists.isGoogle) {
+      throw createHttpError(
+        400,
+        "You signed in with your google account, therefore you cannot change password"
+      );
+    }
+
+    const matchPassword = await userExists.matchPassword(oldPassword);
+    if (!matchPassword) {
+      throw createHttpError(400, "Password is not correct");
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(newPassword, salt);
+    await User.findOneAndUpdate(
+      { userName },
+      { password: hash },
+      { new: true }
+    );
+
+    res.status(200).json({ message: "Password changed successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
 //end
 
 export const updateAddress = expressAsyncHandler(async (req, res) => {
@@ -432,43 +470,6 @@ export const deleteUser = expressAsyncHandler(async (req, res) => {
     data: deletedUser,
     message: "Your account has been deleted successfully.",
   });
-});
-
-export const updatePassword = expressAsyncHandler(async (req, res) => {
-  const userId = req.userId;
-  const { newPassword, password } = req.body;
-  const { userName } = req.params;
-
-  const userExists = await User.findOne({ userName });
-
-  if (!userExists) {
-    return res.status(404).json({ message: "User not found" });
-  }
-
-  if (userExists.isGoogle) {
-    return res.status(400).json({
-      message:
-        "You signed in with your google account. Therefore you cannot change password ",
-    });
-  }
-
-  if (String(userExists._id) !== String(userId)) {
-    return res
-      .status(400)
-      .json({ message: "You cannot edit someone else's profile" });
-  }
-
-  const matchPassword = await userExists.matchPassword(password);
-  if (!matchPassword) {
-    return res.status(400).json({ message: "Password is not correct" });
-  }
-
-  const salt = await bcrypt.genSalt(10);
-  const hash = await bcrypt.hash(newPassword, salt);
-
-  await User.findOneAndUpdate({ userName }, { password: hash }, { new: true });
-
-  res.status(200).json({ message: "Password changed successfully" });
 });
 
 export const verifyEmailandGenerateOTP = expressAsyncHandler(
