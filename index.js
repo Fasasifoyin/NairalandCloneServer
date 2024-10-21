@@ -6,7 +6,6 @@ import createHttpError, { isHttpError } from "http-errors";
 
 import userRoutes from "./routes/User.js";
 import blogRoutes from "./routes/Blogs.js";
-import tagsRoutes from "./SendTagsToMongo.js";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -21,7 +20,6 @@ dotenv.config();
 
 app.use("/api/users", userRoutes);
 app.use("/api/blogs", blogRoutes);
-app.use("/api/import", tagsRoutes);
 
 app.use((req, res, next) => {
   next(createHttpError(404, "Endpoint not found"));

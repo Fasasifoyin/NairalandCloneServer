@@ -3,11 +3,13 @@ import User from "../../models/User.js";
 import Tags from "../../models/Tags.js";
 import expressAsyncHandler from "express-async-handler";
 import { toSlug } from "../../config/MakeSlug.js";
+import { tagsList } from "../../TagsData.js";
 import crypto from "crypto";
 
 import * as dotenv from "dotenv";
 import { v2 as cloudinary } from "cloudinary";
 import Comment from "../../models/Comment.js";
+import createHttpError from "http-errors";
 
 dotenv.config();
 
@@ -17,61 +19,71 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export const createBlog = expressAsyncHandler(async (req, res) => {
-  const id = req.userId;
-  const { title, body, tags, filterImage } = req.body;
+//start
+export const createBlog = async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const { title, body, tags, images } = req.body;
 
-  //Finding user to be sure if he is allowed to create a post
-  const user = await User.findById(id);
-  if (!user) {
-    return res.status(404).json({ message: `You can't create a blog` });
+    if (!title || !body || tags.length === 0 || images.length === 0) {
+      throw createHttpError(400, "Parameters missing");
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw createHttpError(400, "You can't create a blog");
+    }
+
+    //check tags
+    const normalizedTags = [];
+    const invalidTags = [];
+    tags.forEach((tag) => {
+      const foundTag = tagsList.find(
+        (predefinedTag) => predefinedTag.toLowerCase() === tag.toLowerCase()
+      );
+      if (foundTag) {
+        normalizedTags.push(foundTag);
+      } else {
+        invalidTags.push(tag);
+      }
+    });
+    if (invalidTags.length > 0) {
+      throw createHttpError(400, `Invalid tags: ${invalidTags.join(",")}`);
+    }
+
+    let slug = toSlug(title);
+    const checkSlug = await Blog.findOne({ slug });
+    if (checkSlug) {
+      const id = crypto.randomUUID();
+      slug = `${slug}-${id}`;
+    }
+
+    const convertedImages = [];
+    for (let i = 0; i < images.length; i++) {
+      const upload = await cloudinary.uploader.upload(images[i]);
+      const url = upload.url;
+      convertedImages.push(url);
+    }
+
+    const newBlog = await Blog.create({
+      title,
+      body,
+      tags: normalizedTags,
+      images: convertedImages,
+      slug,
+      author: user._id,
+    });
+
+    //Saving blog on user model
+    user.allBlogs.unshift(newBlog._id);
+    await user.save();
+
+    res.status(201).json({ message: "Blog created successfully" });
+  } catch (error) {
+    next(error);
   }
-
-  //Checking if the first tag exist
-  const tagExist = await Tags.findOne({ tag: tags[0] });
-  if (!tagExist) {
-    return res.status(404).json({ message: `Invalid tag` });
-  }
-
-  //creating a slug
-  let slug = toSlug(title);
-
-  //check if slug already exist
-  const checkSlug = await Blog.findOne({ slug });
-  if (checkSlug) {
-    const id = crypto.randomUUID();
-    slug = `${slug}-${id}`;
-  }
-
-  //Uploading image to cloudinary
-  const images = [];
-  for (let i = 0; i < filterImage.length; i++) {
-    const upload = await cloudinary.uploader.upload(filterImage[i]);
-    const url = upload.url;
-    images.push(url);
-  }
-
-  //creating blog
-  const newBlog = await Blog.create({
-    title,
-    body,
-    tags,
-    images,
-    slug,
-    author: user._id,
-  });
-
-  //Saving blog on user model
-  user.allBlogs.unshift(newBlog._id);
-  await user.save();
-
-  //Saving blog on tags model
-  tagExist.related.unshift(newBlog._id);
-  tagExist.relatedLength++;
-  await tagExist.save();
-
-  res.status(201).json({ message: "Blog created successfully" });
-});
+};
+//end
 
 export const deleteBlog = expressAsyncHandler(async (req, res) => {
   const { blogId } = req.params;
