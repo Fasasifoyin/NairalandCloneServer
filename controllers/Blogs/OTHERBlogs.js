@@ -83,6 +83,90 @@ export const createBlog = async (req, res, next) => {
     next(error);
   }
 };
+
+export const updateBlog = async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const { title, body, tags, images, blogId } = req.body;
+
+    if (!title || !body || tags.length === 0 || images.length === 0 || !blogId) {
+      throw createHttpError(400, "Parameters missing");
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw createHttpError(400, "You can't create a blog");
+    }
+
+    const blog = await Blog.findById(blogId);
+    if (!blog) {
+      throw createHttpError(400, "Blog not found");
+    }
+
+    const checkOwner = Boolean(String(blog.author) === String(userId));
+    if (!checkOwner) {
+      throw createHttpError(400, "You are not allowed to edit this blog");
+    }
+
+    const normalizedTags = [];
+    const invalidTags = [];
+    tags.forEach((tag) => {
+      const foundTag = tagsList.find(
+        (predefinedTag) => predefinedTag.toLowerCase() === tag.toLowerCase()
+      );
+      if (foundTag) {
+        normalizedTags.push(foundTag);
+      } else {
+        invalidTags.push(tag);
+      }
+    });
+    if (invalidTags.length > 0) {
+      throw createHttpError(400, `Invalid tags: ${invalidTags.join(",")}`);
+    }
+
+    let slug;
+    if (title.toLowerCase() === blog.title.toLowerCase()) {
+      slug = blog.slug;
+    } else {
+      slug = toSlug(title);
+      const checkSlug = await Blog.findOne({ slug });
+      if (checkSlug) {
+        const id = crypto.randomUUID();
+        slug = `${slug}-${id}`;
+      }
+    }
+
+    const convertedImages = [];
+    for (let i = 0; i < images.length; i++) {
+      const imageUrl = images[i];
+      if (
+        imageUrl.startsWith("http://res.cloudinary.com/dbxvk3apv/image/upload/")
+      ) {
+        convertedImages.push(imageUrl);
+      } else {
+        const upload = await cloudinary.uploader.upload(imageUrl);
+        const url = upload.url;
+        convertedImages.push(url);
+      }
+    }
+
+    const updatedBlog = await Blog.findByIdAndUpdate(
+      blogId,
+      {
+        title,
+        body,
+        tags: normalizedTags,
+        images: convertedImages,
+        slug,
+      },
+      { new: true }
+    );
+
+    res.status(200).json(updatedBlog);
+  } catch (error) {
+    next(error);
+  }
+};
 //end
 
 export const deleteBlog = expressAsyncHandler(async (req, res) => {
@@ -123,59 +207,4 @@ export const deleteBlog = expressAsyncHandler(async (req, res) => {
   await tagExist.save();
 
   res.status(200).json(deletedBlog);
-});
-
-export const updateBlog = expressAsyncHandler(async (req, res) => {
-  const { title, body, tags, filterImage, blogId } = req.body;
-  const userId = req.userId;
-
-  const user = await User.findById(userId);
-  if (!user) {
-    return res.status(404).json({ message: `User not found` });
-  }
-
-  const blog = await Blog.findById(blogId);
-  if (!blog) {
-    return res.status(404).json({ message: `Blog not found` });
-  }
-
-  const checkOwner = Boolean(String(blog.author) === String(userId));
-  if (!checkOwner) {
-    return res
-      .status(404)
-      .json({ message: `You are not allowed to edit this blog` });
-  }
-
-  let slug;
-  if (title === blog.title) {
-    slug = blog.slug;
-  } else {
-    slug = toSlug(title);
-    const checkSlug = await Blog.findOne({ slug });
-    if (checkSlug) {
-      const id = crypto.randomUUID();
-      slug = `${slug}-${id}`;
-    }
-  }
-
-  const images = [];
-  for (let i = 0; i < filterImage.length; i++) {
-    const upload = await cloudinary.uploader.upload(filterImage[i]);
-    const url = upload.url;
-    images.push(url);
-  }
-
-  const updatedBlog = await Blog.findByIdAndUpdate(
-    blogId,
-    {
-      title,
-      body,
-      tags,
-      images,
-      slug,
-    },
-    { new: true }
-  );
-
-  res.status(200).json(updatedBlog);
 });

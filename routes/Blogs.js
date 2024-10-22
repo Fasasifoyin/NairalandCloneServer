@@ -40,10 +40,11 @@ router.get("/get/comment", getComments);
 router.post("/create/comment", auth, createComment);
 
 router.get("/number/checkTags", checkTagsNumber)
-//end
 
 router.post("/create", auth, createBlog);
 router.patch("/update", auth, updateBlog);
+//end
+
 router.delete("/delete/:blogId", auth, deleteBlog)
 
 
